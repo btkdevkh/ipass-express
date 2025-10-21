@@ -1,0 +1,11 @@
+services:
+  ipass:
+    build: .
+    container_name: ipass-express
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./db.sqlite:/app/db.sqlite # persistance
+    env_file:
+      - .env
+    restart: always
