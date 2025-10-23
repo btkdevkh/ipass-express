@@ -67,7 +67,7 @@ app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 app.use(express.static(path.join(__dirname, "public")));
 
-// Get ejs aproach
+// Get all
 app.get("/", async (req, res) => {
   // Insert into database, if no table, create one
   db.run(
@@ -93,29 +93,13 @@ app.get("/", async (req, res) => {
             .join(""),
         }));
 
-        res.render("index", { title: "Home", passwords: rows });
+        res.render("index", { title: "Home", passwords: rows, password: null });
       });
     }
   );
 });
 
-// Delete ejs aproach
-app.post("/delete/:id", async (req, res) => {
-  const { id } = req.params;
-  db.run(`DELETE FROM ipass WHERE id = ?`, [id], function (err) {
-    if (err) {
-      console.log("err", err);
-      return res.status(500).json({ msg: "Database error" });
-    }
-    res.redirect("/");
-  });
-});
-
-// Update ejs aproach
-app.post("/update/:id", async (req, res) => {
-  const { id } = req.params;
-});
-
+// Get password by ID
 app.get("/api/v1/ipass/:id", async (req, res) => {
   const { id } = req.params;
   const master_password = req.query.master_password;
@@ -147,6 +131,7 @@ app.get("/api/v1/ipass/:id", async (req, res) => {
   });
 });
 
+// Create
 app.post("/add", async (req, res) => {
   const { organisation, link, identification, password } = req.body;
 
@@ -170,6 +155,7 @@ app.post("/add", async (req, res) => {
             console.log(err);
             return res.status(500).json({ msg: "Database error" });
           }
+
           res.redirect("/");
         }
       );
@@ -177,12 +163,81 @@ app.post("/add", async (req, res) => {
   );
 });
 
-// Middlewares
+// Update - UI
+app.get("/update/ui/:id", async (req, res) => {
+  const { id } = req.params;
+
+  // Get all entries for rendering
+  db.all(`SELECT * FROM ipass`, [], (err, rows) => {
+    if (err) {
+      console.log("err", err);
+      return res.status(500).json({ msg: "Database error" });
+    }
+
+    // Decrypt passwords before sending to template
+    rows = rows.map((row) => ({
+      ...row,
+      password: Array.from(decrypt(row.password_encrypted)).fill("*").join(""),
+    }));
+
+    // Get existing entry
+    db.get(`SELECT * FROM ipass WHERE id = ?`, [id], (err, row) => {
+      if (err) {
+        console.log("err", err);
+        return res.status(500).json({ msg: "Database error" });
+      }
+      if (!row) {
+        return res.status(404).json({ msg: "Password not found" });
+      }
+
+      row.password = decrypt(row.password_encrypted);
+      res.render("index", { title: "Home", passwords: rows, password: row });
+    });
+  });
+});
+
+// Update - Submit
+app.post("/update/:id", async (req, res) => {
+  const { organisation, link, identification, password } = req.body;
+  const { id } = req.params;
+
+  const encrypted = encrypt(password);
+
+  // Update entry field if exists
+  db.run(
+    `UPDATE ipass SET organisation = ?, link = ?, identification = ?, password_encrypted = ? WHERE id = ?`,
+    [organisation, link, identification, encrypted, id],
+    function (err) {
+      if (err) {
+        console.log("err", err);
+        return res.status(500).json({ msg: "Database error" });
+      }
+      res.redirect("/");
+    }
+  );
+});
+
+// Delete
+app.post("/delete/:id", async (req, res) => {
+  const { id } = req.params;
+  db.run(`DELETE FROM ipass WHERE id = ?`, [id], function (err) {
+    if (err) {
+      console.log("err", err);
+      return res.status(500).json({ msg: "Database error" });
+    }
+
+    res.redirect("/");
+  });
+});
+
+// Catch-all
 app.use((req, res, next) => {
   const error = new Error("Not found");
   error.status = 404;
   next(error);
 });
+
+// Error handler
 app.use((err, req, res, next) => {
   if (err.status) {
     return res.status(err.status).json({ msg: err.message });
@@ -190,6 +245,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ msg: "Server error" });
 });
 
+// Start server
 app.listen(8080, () => {
   console.log("Server is running on http://localhost:8080");
 });

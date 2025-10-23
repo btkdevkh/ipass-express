@@ -4,7 +4,7 @@
   "type": "module",
   "main": "app.js",
   "scripts": {
-    "dev": "nodemon app.js",
+    "dev": "nodemon app.js & npm run css",
     "start": "node app.js",
     "css": "npx tailwindcss -i ./index.css -o ./public/css/style.css --watch"
   },
